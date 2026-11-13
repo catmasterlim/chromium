@@ -13,6 +13,7 @@
       <include name="IDR_BLOCKED_PLUGIN_HTML" file="plugins/blocked_plugin.html" flattenhtml="true" type="BINDATA" />
       <include name="IDR_DISABLED_PLUGIN_HTML" file="plugins/disabled_plugin.html" flattenhtml="true" type="BINDATA" />
       <include name="IDR_PDF_PLUGIN_HTML" file="plugins/pdf_plugin.html" flattenhtml="true" type="BINDATA" />
+      <include name="IDR_SIMPBROWSER_YOUTUBE_JS" file="simpbrowser_youtube.js" type="BINDATA" />
     </includes>
   </release>
 </grit>

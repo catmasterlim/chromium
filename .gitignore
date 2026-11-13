@@ -351,3 +351,6 @@ third_party/rust/target/
 
 # Trace files created when using --trace-startup.
 **/chrometrace.log
+
+# User-exported SimpBrowser diagnostic records.
+/simpbrowser-youtube-diagnostics*.json

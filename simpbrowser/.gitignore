@@ -1,0 +1,32 @@
+# Generated output and browser data, scoped to SimpBrowser tooling only.
+/test-results/
+/profiles/
+/logs/
+/artifacts/
+/dist/
+/bin/
+*.log
+*.exitcode
+*.pid
+*.exe
+*.dll
+*.pdb
+*.obj
+*.lib
+*.exp
+*.ilk
+*.pak
+*.zip
+*.7z
+*.dmp
+*.crdownload
+/simpbrowser-youtube-diagnostics*.json
+/diagnostics*.json
+# Machine-local configuration and credentials.
+.env
+.env.*
+*.local.cmd
+*.pem
+*.key
+*.pfx
+*.p12

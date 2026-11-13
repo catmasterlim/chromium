@@ -294,15 +294,15 @@ If you update this file, be sure also to update google_chrome_strings.grd. -->
         </then>
         <else>
           <message name="IDS_PRODUCT_NAME" desc="The Chrome application name" translateable="false">
-            Chromium
+            SimpBrowser
           </message>
           <message name="IDS_SHORT_PRODUCT_NAME" desc="The Chrome application short name." translateable="false">
-            Chromium
+            SimpBrowser
           </message>
         </else>
       </if>
       <message name="IDS_APP_MENU_YOUR_CHROME_HEADER" desc="Header title for the Your Chromium section in the main App Menu">
-        Your Chromium
+        Your SimpBrowser
       </message>
       <if expr="is_win">
         <message name="IDS_SXS_SHORTCUT_NAME" desc="Unused in Chromium builds" translateable="false">
@@ -312,10 +312,10 @@ If you update this file, be sure also to update google_chrome_strings.grd. -->
         <message name="IDS_SHORTCUT_NAME_DEV" desc="Unused in Chromium builds" translateable="false">
         </message>
         <message name="IDS_PRODUCT_DESCRIPTION" desc="Browser description">
-          Chromium is a web browser that runs webpages and applications with lightning speed. It's fast, stable, and easy to use. Browse the web more safely with malware and phishing protection built into Chromium.
+          SimpBrowser is a Chromium-based web browser with YouTube playback controls.
         </message>
         <message name="IDS_WELCOME_TO_CHROME" desc="Welcoming text announced via screen readers the first time Chrome is launched at the conclusion of installation.">
-          Welcome to Chromium; new browser window opened
+          Welcome to SimpBrowser; new browser window opened
         </message>
       </if>
       <if expr="is_macosx or is_linux">
@@ -370,7 +370,7 @@ If you update this file, be sure also to update google_chrome_strings.grd. -->
       </if>
       <if expr="not is_macosx and not is_chromeos">
         <message name="IDS_TASK_MANAGER_TITLE" desc="The title of the Task Manager window">
-          Task Manager - Chromium
+          Task Manager - SimpBrowser
         </message>
       </if>
       <message name="IDS_TASK_MANAGER_SEARCH_PLACEHOLDER" desc="The placeholder text for the Search bar in the Task Manager window">
@@ -1109,7 +1109,7 @@ Chromium is unable to recover your settings.
       </message>
 
       <message name="IDS_OPEN_IN_CHROME" desc="The text label of the Open in Chrome menu item for the Hosted App app menu">
-        &amp;Open in Chromium
+        &amp;Open in SimpBrowser
       </message>
 
       <if expr="use_titlecase and not is_chromeos">
@@ -1121,12 +1121,12 @@ Chromium is unable to recover your settings.
           </then>
           <else>
             <message name="IDS_ABOUT" desc="In Title Case: The text label of the About Chrome menu item">
-              About &amp;Chromium
+              About &amp;SimpBrowser
             </message>
           </else>
         </if>
         <message name="IDS_RELAUNCH_TO_UPDATE" desc="In Title Case: The text label of the relaunch to update Chrome menu item">
-          Relaunch to Update &amp;Chromium
+          Relaunch to Update &amp;SimpBrowser
         </message>
       </if>
       <if expr="not use_titlecase and not is_chromeos">
@@ -1138,17 +1138,17 @@ Chromium is unable to recover your settings.
           </then>
           <else>
             <message name="IDS_ABOUT" desc="The text label of the About Chrome menu item">
-              About &amp;Chromium
+              About &amp;SimpBrowser
             </message>
           </else>
         </if>
         <message name="IDS_RELAUNCH_TO_UPDATE" desc="The text label of the relaunch to update Chrome menu item">
-          Relaunch to update &amp;Chromium
+          Relaunch to update &amp;SimpBrowser
         </message>
       </if>
       <if expr="is_chromeos">
         <message name="IDS_ABOUT" desc="The text label of the About Chrome menu item">
-          About &amp;Chromium
+          About &amp;SimpBrowser
         </message>
         <message name="IDS_RELAUNCH_TO_UPDATE" desc="The text label of the relaunch to update ChromeOS menu item">
           Relaunch to update &amp;ChromiumOS

@@ -38,6 +38,7 @@
 #include "chrome/renderer/loadtimes_bindings.h"
 #include "chrome/renderer/media/media_feeds.h"
 #include "chrome/renderer/process_state.h"
+#include "chrome/renderer/simpbrowser_youtube.h"
 #include "components/actor/core/actor_features.h"
 #include "components/crash/core/common/crash_key.h"
 #include "components/guest_view/buildflags/buildflags.h"
@@ -389,6 +390,8 @@ void ChromeRenderFrameObserver::DidCommitProvisionalLoad(
 }
 
 void ChromeRenderFrameObserver::DidClearWindowObject() {
+  InstallSimpBrowserYouTube(render_frame()->GetWebFrame());
+
 #if BUILDFLAG(ENABLE_WEBUI_NTP)
   if (process_state::IsInstantProcess()) {
     SearchBoxExtension::Install(render_frame()->GetWebFrame());

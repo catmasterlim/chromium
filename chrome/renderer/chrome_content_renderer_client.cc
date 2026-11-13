@@ -66,6 +66,7 @@
 #include "chrome/renderer/plugins/non_loadable_plugin_placeholder.h"
 #include "chrome/renderer/plugins/pdf_plugin_placeholder.h"
 #include "chrome/renderer/process_state.h"
+#include "chrome/renderer/simpbrowser_youtube.h"
 #include "chrome/renderer/supervised_user/supervised_user_error_page_controller_delegate_impl.h"
 #include "chrome/renderer/tab_context_decryption_token_extension.h"
 #include "chrome/renderer/trusted_vault_encryption_keys_extension.h"
@@ -1364,6 +1365,11 @@ void ChromeContentRendererClient::WillSendRequest(
     const net::SiteForCookies& site_for_cookies,
     const url::Origin* initiator_origin,
     GURL* new_url) {
+  if (BlockSimpBrowserYouTubeRequest(frame, GURL(target_url))) {
+    // An empty local resource cannot contact the advertising destination.
+    *new_url = GURL("data:,");
+    return;
+  }
 #if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
   // Check whether the request should be allowed. If not allowed, we reset the
   // URL to something invalid to prevent the request and cause an error.
