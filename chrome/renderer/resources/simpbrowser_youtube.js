@@ -12,6 +12,7 @@
           domain => host === domain || host.endsWith('.' + domain))) return;
   const key = Symbol.for('simpbrowser.youtube.v1');
   if (window[key]) return;
+  const moduleVersion = 3;
 
   const storageKey = 'simpbrowser.youtube.settings.v1';
   const qualities = [
@@ -88,6 +89,7 @@
   }
   function diagnostics() {
     return { version: 1, scope: 'youtube-ad-diagnostics', enabled: settings.diagnostics,
+      moduleVersion,
       settings: { ads: settings.ads, quality: settings.quality },
       counters: { ...stats }, events: events.map(event => ({ ...event })) };
   }
@@ -116,10 +118,13 @@
   let playerReference;
   let lastQualityAttempt = -Infinity;
   let lastAdAction = 0;
+  let adPlayback;
+  let lastServerCheck = -Infinity;
+  let serverAd = false;
   let scheduled = false;
   let ui;
   let sheet;
-  const status = () => ({ version: 2, ...settings, selectedQuality,
+  const status = () => ({ version: moduleVersion, ...settings, selectedQuality,
     currentQuality, ...stats });
   Object.defineProperty(window, key, {
     value: Object.freeze({ getStatus: status, getDiagnostics: diagnostics }), configurable: false,
@@ -139,7 +144,7 @@
         (url.hostname === 'youtube.com' || url.hostname.endsWith('.youtube.com') ||
          url.hostname === 'youtube-nocookie.com' ||
          url.hostname.endsWith('.youtube-nocookie.com')) &&
-        /^\/youtubei\/v1\/player\/?$/.test(url.pathname);
+        /^\/youtubei\/v1\/(?:player|next|get_watch|navigation\/resolve_url)\/?$/.test(url.pathname);
   }
   function isAdUrl(value) {
     const url = asUrl(value);
@@ -166,10 +171,19 @@
     // Sanitize known player-response envelopes, not arbitrary similarly named
     // fields in unrelated application data. Bound depth and avoid cycles.
     if (depth < 2) {
+      if (Array.isArray(value)) {
+        for (const entry of value.slice(0, 100)) {
+          if (entry && typeof entry === 'object') cleanPlayer(entry, depth + 1);
+        }
+      }
       for (const name of ['playerResponse', 'player_response']) {
         if (value[name] && value[name] !== value && typeof value[name] === 'object') {
           cleanPlayer(value[name], depth + 1);
         }
+      }
+      const prefetched = value.endpoint?.watchEndpoint?.unserializedPrefetchData?.playerResponse;
+      if (prefetched && typeof prefetched === 'object' && prefetched !== value) {
+        cleanPlayer(prefetched, depth + 1);
       }
     }
     return value;
@@ -200,6 +214,24 @@
         get: () => initial,
         set: value => { initial = cleanPlayer(value); },
       });
+    }
+  } catch {}
+
+  // Legacy bootstrap configurations can carry a separate encoded response.
+  function cleanConfig(value) {
+    const args = value?.config?.args;
+    if (settings.ads && args && typeof args === 'object') {
+      if (typeof args.player_response === 'string') args.player_response = cleanText(args.player_response);
+      cleanPlayer(args.raw_player_response);
+    }
+    return value;
+  }
+  try {
+    let config = cleanConfig(window.ytplayer);
+    const descriptor = Object.getOwnPropertyDescriptor(window, 'ytplayer');
+    if (!descriptor || (descriptor.configurable && !descriptor.get && !descriptor.set)) {
+      Object.defineProperty(window, 'ytplayer', { configurable: true, enumerable: true,
+        get: () => config, set: value => { config = cleanConfig(value); } });
     }
   } catch {}
 
@@ -314,24 +346,69 @@
       player.setPlaybackQuality?.(selectedQuality);
     } catch {}  // Player APIs are site internals and can change independently.
   }
-  function skipAd(player) {
-    if (!settings.ads || !player ||
-        !(player.classList.contains('ad-showing') ||
-          player.classList.contains('ad-interrupting')) ||
-        performance.now() - lastAdAction < 750) return;
+  function readServerAd(player) {
+    try { return player?.getStatsForNerds?.()?.debug_info?.startsWith('SSAP, AD') === true; }
+    catch { return false; }
+  }
+  function adActive(player) {
+    if (!player) return false;
+    if (player.classList.contains('ad-showing') || player.classList.contains('ad-interrupting')) return true;
+    if (performance.now() - lastServerCheck >= 1000) {
+      lastServerCheck = performance.now();
+      serverAd = readServerAd(player);
+    }
+    return serverAd;
+  }
+  function restoreAdPlayback() {
+    if (!adPlayback) return;
+    if (adPlayback.video.muted) adPlayback.video.muted = adPlayback.muted;
+    adPlayback = null;
+  }
+  function skipAd(player, active) {
+    if (!settings.ads || !player || !active) { restoreAdPlayback(); return; }
+    const classAd = player.classList.contains('ad-showing') || player.classList.contains('ad-interrupting');
+    // Revalidate the server marker immediately before acting: a cached marker
+    // must never cause the following content segment to be skipped.
+    if (!classAd && !readServerAd(player)) {
+      serverAd = false;
+      restoreAdPlayback();
+      return;
+    }
+    const video = player.querySelector('video');
+    if (adPlayback && adPlayback.video !== video) restoreAdPlayback();
+    if (video && !adPlayback) {
+      adPlayback = { video, muted: video.muted };
+      video.muted = true;
+    }
+    if (performance.now() - lastAdAction < 350) return;
+    if (!classAd) {
+      try {
+        const progress = player.getProgressState?.();
+        if (Number.isFinite(progress?.duration) && progress.duration > 0 &&
+            progress.current < progress.duration - 0.1 && typeof player.seekTo === 'function') {
+          lastAdAction = performance.now();
+          player.seekTo(progress.duration, true);
+          stats.skippedAds++;
+          record('ad_skipped', 1, 'other');
+        }
+      } catch {}
+      return;
+    }
     const skip = player.querySelector(
-        '.ytp-skip-ad-button, .ytp-ad-skip-button-modern, .ytp-ad-skip-button');
+        '.ytp-skip-ad-button, .ytp-ad-skip-button-modern, .ytp-ad-skip-button, .ytp-ad-skip-button-container button');
     if (skip && !skip.disabled && skip.getClientRects().length) {
       lastAdAction = performance.now();
       skip.click();
       stats.skippedAds++;
       record('ad_skipped', 1, 'button');
+      if (!adActive(player)) restoreAdPlayback();
       return;
     }
-    const video = player.querySelector('video');
+    const badge = [...player.querySelectorAll('.ytp-ad-simple-ad-badge, .ytp-ad-duration-remaining, .ytp-ad-preview-container')]
+        .some(node => node.getClientRects().length && getComputedStyle(node).visibility !== 'hidden');
     // Only seek a finite, positively identified ad, never an ordinary/live video.
     if (video && !video.seeking && Number.isFinite(video.duration) &&
-        video.duration > 0 && video.duration < 600 &&
+        video.duration > 0 && (video.duration < 600 || badge) &&
         video.currentTime < video.duration - 0.1) {
       try {
         lastAdAction = performance.now();
@@ -508,7 +585,7 @@
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     });
     const diagnosticNote = document.createElement('p');
-    diagnosticNote.textContent = '현재 탭에 최대 128건만 저장합니다. 주소·검색어·쿠키를 기록하거나 외부로 전송하지 않습니다.';
+    diagnosticNote.textContent = `차단 모듈 v${moduleVersion} · 현재 탭에 최대 128건만 저장합니다. 주소·검색어·쿠키를 기록하거나 외부로 전송하지 않습니다.`;
     const recent = document.createElement('details');
     const recentSummary = document.createElement('summary');
     recentSummary.textContent = '최근 진단 이벤트';
@@ -568,18 +645,16 @@
     mountUi();
     const player = document.querySelector('#movie_player, #player-container .html5-video-player');
     if (player) {
-      const ad = player.classList.contains('ad-showing') ||
-          player.classList.contains('ad-interrupting');
+      const ad = adActive(player);
       if (ad !== wasAd) {
         wasAd = ad;
         adStartedAt = ad ? Date.now() : 0;
         record(ad ? 'ad_started' : 'ad_ended');
       }
       if (ad && Date.now() - adStartedAt > 10000) record('ad_still_active');
-      skipAd(player);
-      if (!player.classList.contains('ad-showing') &&
-          !player.classList.contains('ad-interrupting')) enforceQuality(player);
-    }
+      skipAd(player, ad);
+      if (!ad) enforceQuality(player);
+    } else { restoreAdPlayback(); }
     if (ui) {
       const label = qualities.find(([id]) => id === settings.quality)?.[1] || '1080p';
       const text = 'SimpBrowser · ' + label;
@@ -606,6 +681,10 @@
     schedule();
   });
   document.addEventListener('loadedmetadata', schedule, true);
+  document.addEventListener('timeupdate', event => {
+    if (settings.ads && event.target instanceof HTMLVideoElement &&
+        event.target.closest('.ad-showing, .ad-interrupting')) schedule();
+  }, true);
   window.addEventListener('pagehide', persistDiagnostics);
   document.addEventListener('error', event => {
     if (settings.ads && event.target instanceof HTMLImageElement &&

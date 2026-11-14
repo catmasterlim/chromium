@@ -1,4 +1,5 @@
 @echo off
+if not exist "%~dp0logs" mkdir "%~dp0logs"
 for %%I in ("%~dp0..") do set "SIMPBROWSER_SRC=%%~fI"
 if defined SIMPBROWSER_DEPOT_TOOLS set "PATH=%SIMPBROWSER_DEPOT_TOOLS%;%PATH%"
 if not defined SIMPBROWSER_DEPOT_TOOLS if exist "%SIMPBROWSER_SRC%\..\..\depot_tools\gn.bat" set "PATH=%SIMPBROWSER_SRC%\..\..\depot_tools;%PATH%"

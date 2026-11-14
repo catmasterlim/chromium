@@ -36,12 +36,16 @@ node .\test-youtube.mjs                  # Offline fixture checks, built browser
 node .\test-youtube.mjs --live           # Also plays a public YouTube sample
 ```
 
+Build logs are stored in `simpbrowser/logs/`. Run `organize-logs.ps1` to move
+older loose logs; active files are skipped and existing files are never overwritten.
+Browser tests always use `--mute-audio`.
+
 Reports and test profiles are written under `simpbrowser/test-results`.
 Logs, exit-code files, profiles, diagnostics exports, local configuration, and
 generated output are ignored. The Chromium checkout's existing rules ignore
 `out/`; binaries, cookies, login data, and raw test reports are not versioned.
 
-Verified before this commit: 182 URL unit tests; 29 browser feature checks;
+Verified 2026-11-14: 182 URL unit tests; 34 browser feature checks;
 actual 1920×1080 playback. Portable helpers preserve the same browser checks.
 Release configuration has been validated; a full release build has not been
 verified as part of these results.

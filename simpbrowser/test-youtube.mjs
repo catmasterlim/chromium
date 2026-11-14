@@ -14,7 +14,7 @@ const result = { startedAt: new Date().toISOString(), injected, checks: [] };
 let socket;
 let stderr = '';
 const browser = spawn(path.join(root, 'out/SimpBrowser/chrome.exe'), [
-  '--headless', '--remote-debugging-port=0', '--remote-debugging-address=127.0.0.1',
+  '--headless', '--mute-audio', '--remote-debugging-port=0', '--remote-debugging-address=127.0.0.1',
   `--user-data-dir=${profile}`, '--no-first-run', '--no-default-browser-check',
   '--autoplay-policy=no-user-gesture-required', 'about:blank',
 ], { windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] });
@@ -99,10 +99,11 @@ try {
     const url = new URL(request.url);
     const ad = /doubleclick|googlesyndication|googleadservices/.test(url.hostname);
     if (ad) interceptedAds++;
-    const player = url.pathname === '/youtubei/v1/player';
+    const player = /^\/youtubei\/v1\/(player|next|get_watch|navigation\/resolve_url)$/.test(url.pathname);
     const data = url.searchParams.get('fixture') === 'wrapped' ?
       { playerResponse, unrelated: { adSlots: ['not-player-data'] } } : playerResponse;
-    const body = player ? JSON.stringify(data) : ad ? '{}' : fixture;
+    const response = url.pathname.endsWith('/resolve_url') ? {endpoint:{watchEndpoint:{unserializedPrefetchData:{playerResponse}}},unrelated:{adSlots:['keep']}} : data;
+    const body = player ? JSON.stringify(response) : ad ? '{}' : fixture;
     call('Fetch.fulfillRequest', { requestId, responseCode: 200,
       responseHeaders: [
         { name: 'Content-Type', value: player || ad ? 'application/json' : 'text/html; charset=utf-8' },
@@ -126,6 +127,8 @@ try {
   await navigate(fixtureUrl);
   assert.equal(await evaluate('window.beforePage'), true);
   passed('installed-before-page-scripts');
+  assert.equal((await evaluate(status)).version, 3);
+  passed('ad-module-version-3-installed');
   await waitFor('window.actualQuality === "hd1080"', '1080p default');
   const initial = await evaluate('window.ytInitialPlayerResponse');
   assert.equal(initial.videoDetails.videoId, 'fixture');
@@ -151,6 +154,20 @@ try {
     assert.ok(!('playerAds' in value) && !('adSlots' in value));
   }
   passed('xhr-text-and-json-player-responses-sanitized');
+  for (const route of ['next', 'get_watch', 'navigation/resolve_url']) {
+    const response = await evaluate(`fetch('/youtubei/v1/${route}').then(r=>r.json())`);
+    const data = route.endsWith('resolve_url') ? response.endpoint.watchEndpoint.unserializedPrefetchData.playerResponse : response;
+    assert.equal(data.videoDetails.videoId, 'fixture');
+    for (const key of ['playerAds','adSlots','adPlacements']) assert.ok(!(key in data));
+    if (response.unrelated) assert.deepEqual(response.unrelated.adSlots, ['keep']);
+  }
+  passed('navigation-prefetch-and-next-responses-sanitized');
+  const legacy = await evaluate(`(()=>{window.ytplayer={config:{args:{player_response:JSON.stringify({videoDetails:{videoId:'legacy'},playerAds:[1]}),raw_player_response:{adSlots:[1],streamingData:{formats:[1]}}}}};return window.ytplayer.config.args})()`);
+  assert.equal(JSON.parse(legacy.player_response).videoDetails.videoId, 'legacy');
+  assert.ok(!('playerAds' in JSON.parse(legacy.player_response)));
+  assert.ok(!('adSlots' in legacy.raw_player_response));
+  passed('legacy-config-player-data-sanitized');
+
   assert.equal(await evaluate(`fetch('https://googleads.g.doubleclick.net/pagead/adview').then(r=>r.status)`), 204);
   await evaluate(`new Promise(resolve=>{const x=new XMLHttpRequest();x.open('POST','https://googleads.g.doubleclick.net/pagead/adview');x.onloadend=()=>resolve(x.status);x.send('ad')})`);
   assert.equal(interceptedAds, 0);
@@ -193,6 +210,28 @@ try {
   assert.equal(await evaluate('window.testTime'), 0);
   await evaluate(`document.querySelector('#movie_player').classList.remove('ad-showing')`);
   passed('finite-ad-seek-only-no-live-or-normal-video-seek');
+  await waitFor('!document.querySelector("video").muted', 'ad mute restored');
+  await evaluate(`window.testDuration=1800;window.testTime=15;document.querySelector('#movie_player').classList.add('ad-showing')`);
+  await sleep(1200);
+  assert.equal(await evaluate('window.testTime'), 15);
+  await evaluate(`const badge=document.createElement('span');badge.className='ytp-ad-simple-ad-badge';badge.textContent='Ad';document.querySelector('#movie_player').append(badge)`);
+  await waitFor('window.testTime === 1800', 'long ad with visible badge');
+  await evaluate(`document.querySelector('#movie_player').classList.remove('ad-showing');document.querySelector('.ytp-ad-simple-ad-badge').remove();window.testTime=15`);
+  await waitFor('!document.querySelector("video").muted', 'long ad mute restored');
+  passed('long-video-seek-requires-ad-badge-and-restores-mute');
+  await evaluate(`(()=>{const p=document.querySelector('#movie_player');window.serverMarker='SSAP, AD';window.serverSeeks=[];p.getStatsForNerds=()=>({debug_info:window.serverMarker});p.getProgressState=()=>({current:2,duration:25});p.seekTo=(time)=>{window.serverSeeks.push(time);window.serverMarker='CONTENT'}})()`);
+  await waitFor('window.serverSeeks.length === 1', 'server ad segment seek');
+  await sleep(1500);
+  assert.deepEqual(await evaluate('window.serverSeeks'), [25]);
+  assert.equal(await evaluate('window.testTime'), 15);
+  await waitFor('!document.querySelector("video").muted', 'server ad mute restored');
+  await evaluate(`window.serverMarker='SSAP, AD'`);
+  await waitFor('window.serverSeeks.length === 2', 'second server ad segment seek');
+  await sleep(1200);
+  assert.deepEqual(await evaluate('window.serverSeeks'), [25,25]);
+  assert.equal(await evaluate('window.testTime'), 15);
+  passed('server-preroll-and-midroll-seek-segment-only-with-fresh-marker');
+
   await waitFor('!!document.querySelector("#simpbrowser-youtube-settings")', 'settings UI');
   await evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{altKey:true,shiftKey:true,code:'KeyY'}))`);
   await evaluate(`const s=document.querySelector('#simpbrowser-youtube-settings').shadowRoot;s.querySelector('button[aria-controls="preferences"]').click();const q=s.querySelector('select');q.value='hd720';q.dispatchEvent(new Event('change'))`);

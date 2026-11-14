@@ -9,7 +9,7 @@ const artifacts = path.join(root, 'simpbrowser/test-results');
 const profile = path.join(artifacts, `profile-${Date.now()}`);
 await mkdir(profile, { recursive: true });
 const browser = spawn(path.join(root, 'out/SimpBrowser/chrome.exe'), [
-  '--headless', '--remote-debugging-port=0', '--remote-debugging-address=127.0.0.1',
+  '--headless', '--mute-audio', '--remote-debugging-port=0', '--remote-debugging-address=127.0.0.1',
   `--user-data-dir=${profile}`, '--no-first-run', '--no-default-browser-check',
   'about:blank',
 ], { windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] });
